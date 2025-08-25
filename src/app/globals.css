@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 96%;
+    --foreground: 240 6% 10%;
+    --primary: 211 80% 55%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 88%;
+    --secondary-foreground: 240 6% 10%;
+    --muted: 0 0% 88%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 45 70% 55%;
+    --accent-foreground: 240 6% 10%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 211 80% 55%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 6% 10%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 240 6% 10%;
+    --foreground: 0 0% 98%;
+    --primary: 211 80% 60%;
+    --primary-foreground: 240 6% 10%;
+    --secondary: 240 5% 20%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 5% 20%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 45 70% 55%;
+    --accent-foreground: 240 6% 10%;
+    --border: 240 5% 20%;
+    --input: 240 5% 20%;
+    --ring: 211 80% 60%;
+    --card: 240 6% 12%;
+    --card-foreground: 0 0% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    /* Prevent automatic text size adjustments on iOS */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* Improve touch behavior, reduce accidental zoom/scroll chaining */
+    touch-action: manipulation;
+    overscroll-behavior-y: none;
+  }
+  /* Ensure form controls have >=16px font to avoid iOS zoom on focus */
+  input, select, textarea {
+    font-size: 16px;
+  }
+}
+
+@layer utilities {
+  /* Enable momentum/bouncy scrolling on iOS inside scrollable containers */
+  .scroll-bounce {
+    -webkit-overflow-scrolling: touch;
+  }
+}
