@@ -10,6 +10,7 @@ import ThemeSwitcher from '@/components/theme-switcher'
 import ProfileMenu from '@/components/profile-menu'
 import billingService, { type CreateOrderInput } from '@/lib/billing'
 import { useToast } from '@/components/ui/toast'
+import { formatApiError } from '@/lib/api'
 
 // Types
 type Category = 'Shirts' | 'Pants' | 'Shoes' | 'Accessories' | 'Custom'
@@ -59,7 +60,14 @@ export default function BillPage() {
         discount: Math.max(0, parseFloat(discount || '0') || 0),
         sub_total: subtotal,
       }
-      const result = await billingService.createOrder(input)
+      const res = await billingService.createOrderSafe(input)
+      if (res.errors) {
+        const msg = formatApiError(res.errors, 'Failed to create order')
+        setCreateError(msg)
+        addToast({ title: 'Order failed', description: msg, variant: 'destructive' })
+        return
+      }
+      const result = res.data
       // Basic confirmation and reset bill
       if (result?.invoice_number) {
         addToast({
@@ -69,6 +77,10 @@ export default function BillPage() {
         setBillItems([])
         setDiscount('0')
         // keep customer fields for convenience
+      } else {
+        const msg = 'Unexpected response from server'
+        setCreateError(msg)
+        addToast({ title: 'Order failed', description: msg, variant: 'destructive' })
       }
     } catch (e: any) {
       const msg = e?.message || 'Failed to create order'
@@ -186,8 +198,15 @@ export default function BillPage() {
     stopScanner()
     setWantScanning(false)
     billingService
-      .productByCode(raw)
-      .then((p) => {
+      .productByCodeSafe(raw)
+      .then((res) => {
+        if (res.errors) {
+          const msg = formatApiError(res.errors, 'Failed to fetch product')
+          setDetectedError(msg)
+          addToast({ title: 'Scan failed', description: msg, variant: 'destructive' })
+          return
+        }
+        const p = res.data
         if (p) {
           setDetectedInfo((prev) =>
             prev
@@ -208,8 +227,10 @@ export default function BillPage() {
           setDetectedError('Product not found')
         }
       })
-      .catch(() => {
-        setDetectedError('Failed to fetch product')
+      .catch((e) => {
+        const msg = e?.message || 'Failed to fetch product'
+        setDetectedError(msg)
+        addToast({ title: 'Scan failed', description: msg, variant: 'destructive' })
       })
       .finally(() => {
         setDetectedLoading(false)

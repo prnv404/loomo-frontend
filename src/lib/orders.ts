@@ -1,4 +1,4 @@
-import { graphqlClient } from './api'
+import { graphqlClient, safeQuery, type ApiResponse } from './api'
 
 export type StoreOrderStatus = 'Pending' | 'Accepted' | 'Declined' | 'Completed'
 
@@ -62,6 +62,33 @@ export const ordersService = {
       // Fallback: empty list (could add local sample if desired)
       return []
     }
+  },
+  async listStoreSafe(): Promise<ApiResponse<StoreOrder[]>> {
+    const res = await safeQuery<{ orders: any[] }>(GQL_ORDERS)
+    if (!res.data) {
+      return {
+        data: null,
+        errors: res.errors ?? [{ message: 'Unknown error', code: 'UNKNOWN', details: '', path: [] }],
+      }
+    }
+    const arr: StoreOrder[] = (res.data.orders ?? []).map((o) => ({
+      id: String(o.id),
+      invoice: o.invoice_number ?? '',
+      total: Number(o.sub_total) || 0,
+      date: o.createdAt ?? new Date().toISOString(),
+      status: mapStatus(o.status),
+      customer: o.customer
+        ? { id: String(o.customer.id), name: o.customer.name ?? undefined, phone: o.customer.phone ?? undefined }
+        : undefined,
+      items: Array.isArray(o.order_items)
+        ? o.order_items.map((it: any) => ({
+            productId: it?.product?.id != null ? String(it.product.id) : '',
+            productName: it?.product?.name ?? '',
+          }))
+        : [],
+      user: o.user ? { id: String(o.user.id), name: o.user.name ?? undefined } : undefined,
+    }))
+    return { data: arr, errors: null }
   },
 }
 

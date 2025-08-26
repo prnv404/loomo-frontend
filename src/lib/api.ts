@@ -27,6 +27,42 @@ export interface GraphQLError {
   extensions?: Record<string, any>
 }
 
+// Generic API error/response shapes for app-wide handling
+export type ApiError = {
+  message: string
+  code: string
+  details: string
+  path: string[]
+}
+
+export type ApiResponse<T> = {
+  errors: ApiError[] | null
+  data: T | null
+}
+
+// Normalize GraphQL errors to ApiError[] (generic, no hard-coded codes)
+export function normalizeGraphQLErrors(errors?: GraphQLError[] | null): ApiError[] {
+  if (!errors || errors.length === 0) return []
+  return errors.map((e) => ({
+    message: e.message || 'Error',
+    code: String((e.extensions?.code ?? e.code ?? 'UNKNOWN')),
+    details: String((e.extensions?.details ?? e.message ?? '')),
+    path: Array.isArray(e.path) ? e.path : [],
+  }))
+}
+
+// Convenience helpers
+export function firstApiError(errors: ApiError[] | null | undefined): ApiError | null {
+  return errors && errors.length > 0 ? errors[0] : null
+}
+
+export function formatApiError(errors: ApiError[] | null | undefined, fallback = 'Something went wrong'): string {
+  const e = firstApiError(errors)
+  if (!e) return fallback
+  // Prefer details when present; fallback to message
+  return e.details?.toString?.() || e.message || fallback
+}
+
 export interface GraphQLRequest {
   query: string
   variables?: Record<string, any>
@@ -142,6 +178,38 @@ class GraphQLClientError extends Error {
 // Create GraphQL client instance
 export const graphqlClient = new GraphQLClient(GRAPHQL_ENDPOINT)
 
+// Safe helpers that never throw; return ApiResponse<T>
+export async function safeQuery<T>(query: string, variables?: Record<string, any>): Promise<ApiResponse<T>> {
+  try {
+    const result = await graphqlClient.request<T>(query, variables)
+    return {
+      data: (result?.data as T) ?? null,
+      errors: result?.errors ? normalizeGraphQLErrors(result.errors) : null,
+    }
+  } catch (err: any) {
+    if (err instanceof GraphQLClientError) {
+      return { data: null, errors: normalizeGraphQLErrors(err.errors) }
+    }
+    // Network or unknown error
+    return {
+      data: null,
+      errors: [
+        {
+          message: err?.message || 'Unknown error',
+          code: String(err?.code ?? 'UNKNOWN'),
+          details: String(err?.message ?? ''),
+          path: [],
+        },
+      ],
+    }
+  }
+}
+
+export async function safeMutate<T>(mutation: string, variables?: Record<string, any>): Promise<ApiResponse<T>> {
+  // Mutations are also POST requests; share the same handler
+  return safeQuery<T>(mutation, variables)
+}
+
 // Custom hook for GraphQL calls with error handling
 export function useGraphQL() {
   const handleQuery = async <T>(
@@ -177,4 +245,12 @@ export function useGraphQL() {
   }
 
   return { handleQuery, handleMutation }
+}
+
+// Lightweight hook to use the safe helpers in components
+export function useSafeGraphQL() {
+  return {
+    query: safeQuery,
+    mutate: safeMutate,
+  }
 }

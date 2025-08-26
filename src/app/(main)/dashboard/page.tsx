@@ -12,36 +12,23 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts'
+import { useEffect, useMemo, useState } from 'react'
+import dashboardService, { RevenuePoint, Summary, CategorySales } from '@/lib/dashboard'
 
-// Mock data for the stats cards
-const stats = {
-  totalRevenue: 45231.89,
-  revenueChange: "+20.1%",
-  totalCustomers: 2350,
-  customersChange: "+15.2%",
-  salesToday: 1250.00,
-  salesTodayChange: "+5.4% from yesterday",
-  totalOrders: 1204,
-  ordersToday: 42,
+// Helpers
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+function fmtMonth(ym: string) {
+  const parts = ym.split('-')
+  const m = Number(parts[1])
+  return Number.isFinite(m) && m >= 1 && m <= 12 ? MONTHS[m - 1] : ym
 }
 
-// Mock data for the revenue chart
-const revenueOverTime = [
-  { name: 'Jan', revenue: 4000 },
-  { name: 'Feb', revenue: 3000 },
-  { name: 'Mar', revenue: 5000 },
-  { name: 'Apr', revenue: 4500 },
-  { name: 'May', revenue: 6000 },
-  { name: 'Jun', revenue: 5500 },
-  { name: 'Jul', revenue: 7000 },
-]
-
-// Mock data for top categories
-const topCategories = [
-  { categoryName: 'Classic White Shirt', totalQuantity: 150, totalRevenue: 11250.00 },
-  { categoryName: 'Slim-Fit Chinos', totalQuantity: 120, totalRevenue: 10800.00 },
-  { categoryName: 'Leather Loafers', totalQuantity: 80, totalRevenue: 12000.00 },
-]
+function changeClass(text?: string) {
+  const t = (text || '').trim()
+  if (t.startsWith('-')) return 'text-red-500'
+  if (t.startsWith('+')) return 'text-green-500'
+  return 'text-muted-foreground'
+}
 
 // Custom tooltip component
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -68,6 +55,49 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 }
 
 export default function DashboardPage() {
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [summary, setSummary] = useState<Summary | null>(null)
+  const [revenue6, setRevenue6] = useState<RevenuePoint[]>([])
+  const [categories, setCategories] = useState<CategorySales[]>([])
+
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      try {
+        setLoading(true)
+        const data = await dashboardService.get()
+        if (!active) return
+        setSummary(data.summary)
+        setRevenue6(data.revenueLast6Months)
+        setCategories(data.salesByCategory)
+        setError(null)
+      } catch (e) {
+        if (!active) return
+        setError(e instanceof Error ? e.message : 'Failed to load dashboard')
+      } finally {
+        if (active) setLoading(false)
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const revenueChartData = useMemo(
+    () => revenue6.map((p) => ({ name: fmtMonth(p.month), revenue: p.revenue })),
+    [revenue6]
+  )
+  const topCategories = useMemo(
+    () =>
+      categories.map((c) => ({
+        categoryName: c.categoryName,
+        totalQuantity: c.totalQuantity,
+        totalRevenue: c.totalAmount,
+      })),
+    [categories]
+  )
+
   return (
     <div className="flex flex-col gap-4 p-4 min-h-screen">
       {/* Sticky Top Bar within the page */}
@@ -87,6 +117,8 @@ export default function DashboardPage() {
       <div className="space-y-2">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">OUTFIT</h1>
         <p className="text-muted-foreground text-sm sm:text-base">Here's a summary of your store's performance.</p>
+        {error && <p className="text-sm text-red-500">Failed to load dashboard: {error}</p>}
+        {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
       </div>
 
       {/* Stats Cards Grid */}
@@ -98,8 +130,10 @@ export default function DashboardPage() {
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">₹{stats.totalRevenue.toLocaleString()}</div>
-            <p className="text-xs text-green-500">{stats.revenueChange} from last month</p>
+            <div className="text-xl sm:text-2xl font-bold">₹{(summary?.totalRevenue ?? 0).toLocaleString()}</div>
+            <p className={`text-xs ${changeClass(summary?.totalRevenueChangeText)}`}>
+              {summary?.totalRevenueChangeText || '\u00A0'}
+            </p>
           </CardContent>
         </Card>
 
@@ -110,20 +144,24 @@ export default function DashboardPage() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{stats.totalOrders.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">+{stats.ordersToday} orders today</p>
+            <div className="text-xl sm:text-2xl font-bold">{(summary?.totalOrders ?? 0).toLocaleString()}</div>
+            <p className={`text-xs ${changeClass(summary?.ordersTodayText)}`}>
+              {summary?.ordersTodayText || '\u00A0'}
+            </p>
           </CardContent>
         </Card>
 
-        {/* Customers Card */}
+        {/* Net Profit (Monthly) Card */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Customers</CardTitle>
+            <CardTitle className="text-sm font-medium">Net Profit (Monthly)</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">+{stats.totalCustomers.toLocaleString()}</div>
-            <p className="text-xs text-green-500">{stats.customersChange} from last month</p>
+            <div className="text-xl sm:text-2xl font-bold">₹{(summary?.monthlyNetProfit ?? 0).toLocaleString()}</div>
+            <p className={`text-xs ${changeClass(summary?.monthlyNetProfitChangeText)}`}>
+              {summary?.monthlyNetProfitChangeText || '\u00A0'}
+            </p>
           </CardContent>
         </Card>
 
@@ -134,8 +172,10 @@ export default function DashboardPage() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">+{stats.salesToday.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">{stats.salesTodayChange}</p>
+            <div className="text-xl sm:text-2xl font-bold">₹{(summary?.todaySales ?? 0).toLocaleString()}</div>
+            <p className={`text-xs ${changeClass(summary?.todaySalesChangeText)}`}>
+              {summary?.todaySalesChangeText || '\u00A0'}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -149,7 +189,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="pl-2">
             <ResponsiveContainer width="100%" height={280} className="sm:h-[350px]">
-              <AreaChart data={revenueOverTime}>
+              <AreaChart data={revenueChartData}>
                 <defs>
                   <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
                     <stop

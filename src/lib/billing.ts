@@ -1,4 +1,4 @@
-import { graphqlClient } from './api'
+import { graphqlClient, safeQuery, safeMutate, type ApiResponse } from './api'
 
 export type ScannedProduct = {
   id: string
@@ -31,6 +31,27 @@ export async function productByCode(code: string): Promise<ScannedProduct | null
     stock_quantity: Number(p.stock_quantity) || 0,
     barcode: p.barcode ?? undefined,
   }
+}
+
+export async function productByCodeSafe(code: string): Promise<ApiResponse<ScannedProduct | null>> {
+  const res = await safeQuery<{ productByCode: any | null }>(GQL_PRODUCT_BY_CODE, { code })
+  if (!res.data) {
+    // No transport/GraphQL-level data; pass through errors or none
+    return { data: null, errors: res.errors ?? null }
+  }
+  const p = res.data.productByCode
+  if (!p) {
+    // Not found: this is not an error; return data: null with no errors
+    return { data: null, errors: null }
+  }
+  const mapped: ScannedProduct = {
+    id: String(p.id),
+    name: p.name ?? '',
+    price: Number(p.price) || 0,
+    stock_quantity: Number(p.stock_quantity) || 0,
+    barcode: p.barcode ?? undefined,
+  }
+  return { data: mapped, errors: null }
 }
 
 export type CreateOrderItemInput = {
@@ -76,5 +97,15 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
   return data?.createOrder as CreateOrderResult
 }
 
-const billingService = { productByCode, createOrder }
+export async function createOrderSafe(input: CreateOrderInput): Promise<ApiResponse<CreateOrderResult>> {
+  const res = await safeMutate<{ createOrder: CreateOrderResult }>(GQL_CREATE_ORDER, { createOrderInput: input })
+  if (!res.data) {
+    return { data: null, errors: res.errors ?? [{ message: 'Unknown error', code: 'UNKNOWN', details: '', path: [] }] }
+  }
+  // @ts-ignore
+  const payload = res.data.createOrder as CreateOrderResult
+  return { data: payload, errors: null }
+}
+
+const billingService = { productByCode, productByCodeSafe, createOrder, createOrderSafe }
 export default billingService
