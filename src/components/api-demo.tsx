@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Loader2, CheckCircle, XCircle, RefreshCw } from 'lucide-react'
 import { healthService, HealthStatus } from '@/lib/services'
+import { formatApiError } from '@/lib/api'
 
 export function ApiDemo() {
   const [healthData, setHealthData] = useState<HealthStatus | null>(null)
@@ -17,10 +18,15 @@ export function ApiDemo() {
     setError(null)
     
     try {
-      const response = await healthService.checkHealth()
-      setHealthData(response.health)
+      const response = await healthService.checkHealthSafe()
+      if (response.errors) {
+        setError(formatApiError(response.errors, ''))
+        setHealthData(null)
+        return
+      }
+      setHealthData(response.data)
     } catch (err: any) {
-      setError(err.message || 'Failed to check GraphQL API health')
+      setError(err?.message || '')
     } finally {
       setLoading(false)
     }

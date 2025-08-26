@@ -174,7 +174,8 @@ export default function BarcodeScanner({
       }
       await ensureAudio()
     } catch (e: any) {
-      setScanError(e?.message || 'Failed to start scanner')
+      const msg = e?.message || ''
+      setScanError(msg || null)
       setScanning(false)
       stopScanner()
     } finally {

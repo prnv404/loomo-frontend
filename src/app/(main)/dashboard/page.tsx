@@ -14,6 +14,7 @@ import {
 } from 'recharts'
 import { useEffect, useMemo, useState } from 'react'
 import dashboardService, { RevenuePoint, Summary, CategorySales } from '@/lib/dashboard'
+import { formatApiError } from '@/lib/api'
 
 // Helpers
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -64,20 +65,21 @@ export default function DashboardPage() {
   useEffect(() => {
     let active = true
     ;(async () => {
-      try {
-        setLoading(true)
-        const data = await dashboardService.get()
-        if (!active) return
-        setSummary(data.summary)
-        setRevenue6(data.revenueLast6Months)
-        setCategories(data.salesByCategory)
+      setLoading(true)
+      const res = await dashboardService.getSafe()
+      if (!active) return
+      if (res.errors) {
+        setError(formatApiError(res.errors, ''))
+        setSummary(null)
+        setRevenue6([])
+        setCategories([])
+      } else if (res.data) {
+        setSummary(res.data.summary)
+        setRevenue6(res.data.revenueLast6Months)
+        setCategories(res.data.salesByCategory)
         setError(null)
-      } catch (e) {
-        if (!active) return
-        setError(e instanceof Error ? e.message : 'Failed to load dashboard')
-      } finally {
-        if (active) setLoading(false)
       }
+      if (active) setLoading(false)
     })()
     return () => {
       active = false
@@ -117,7 +119,7 @@ export default function DashboardPage() {
       <div className="space-y-2">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">OUTFIT</h1>
         <p className="text-muted-foreground text-sm sm:text-base">Here's a summary of your store's performance.</p>
-        {error && <p className="text-sm text-red-500">Failed to load dashboard: {error}</p>}
+        {error && <p className="text-sm text-red-500">{error}</p>}
         {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
       </div>
 

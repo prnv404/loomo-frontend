@@ -47,9 +47,9 @@ export default function OrdersPage() {
         const res = await ordersService.listStoreSafe()
         if (!active) return
         if (res.errors) {
-          const msg = formatApiError(res.errors, "Failed to load orders")
-          setErrorStore(msg)
-          addToast({ title: "Failed to load orders", description: msg, variant: "destructive" })
+          const msg = formatApiError(res.errors, '')
+          setErrorStore(msg || null)
+          if (msg) addToast({ title: msg, variant: 'destructive' })
           setStoreOrders([])
         } else {
           const mapped: Order[] = (res.data ?? []).map((o) => ({

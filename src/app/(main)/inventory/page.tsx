@@ -134,7 +134,8 @@ export default function InventoryPage() {
       setTotal(res.total)
       setItems((prev) => (replace ? res.items : [...prev, ...res.items]))
     } catch (e: any) {
-      setError(e?.message || 'Failed to load inventory')
+      const msg = e?.message || ''
+      setError(msg || null)
     } finally {
       setLoading(false)
     }

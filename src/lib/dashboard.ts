@@ -79,7 +79,7 @@ export async function get(): Promise<DashboardData> {
 export async function getSafe(): Promise<ApiResponse<DashboardData>> {
   const res = await safeQuery<{ dashboard: any }>(GQL_DASHBOARD)
   if (!res.data) {
-    return { data: null, errors: res.errors ?? [{ message: 'Unknown error', code: 'UNKNOWN', details: '', path: [] }] }
+    return { data: null, errors: res.errors ?? null }
   }
   return { data: mapDashboard(res.data.dashboard ?? {}), errors: null }
 }

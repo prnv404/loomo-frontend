@@ -1,4 +1,4 @@
-import { graphqlClient } from './api'
+import { graphqlClient, safeQuery, type ApiResponse } from './api'
 
 // GraphQL Types
 export interface User {
@@ -160,5 +160,12 @@ export const postService = {
 export const healthService = {
   async checkHealth(): Promise<{ health: HealthStatus }> {
     return graphqlClient.query(HEALTH_CHECK)
+  },
+  async checkHealthSafe(): Promise<ApiResponse<HealthStatus>> {
+    const res = await safeQuery<{ health: HealthStatus }>(HEALTH_CHECK)
+    if (!res.data) {
+      return { data: null, errors: res.errors ?? null }
+    }
+    return { data: res.data.health ?? null, errors: null }
   },
 }

@@ -44,7 +44,7 @@ export type ApiResponse<T> = {
 export function normalizeGraphQLErrors(errors?: GraphQLError[] | null): ApiError[] {
   if (!errors || errors.length === 0) return []
   return errors.map((e) => ({
-    message: e.message || 'Error',
+    message: String(e.message ?? ''),
     code: String((e.extensions?.code ?? e.code ?? 'UNKNOWN')),
     details: String((e.extensions?.details ?? e.message ?? '')),
     path: Array.isArray(e.path) ? e.path : [],
@@ -56,7 +56,7 @@ export function firstApiError(errors: ApiError[] | null | undefined): ApiError |
   return errors && errors.length > 0 ? errors[0] : null
 }
 
-export function formatApiError(errors: ApiError[] | null | undefined, fallback = 'Something went wrong'): string {
+export function formatApiError(errors: ApiError[] | null | undefined, fallback = ''): string {
   const e = firstApiError(errors)
   if (!e) return fallback
   // Prefer details when present; fallback to message
@@ -148,7 +148,8 @@ class GraphQLClient {
       if (error instanceof GraphQLClientError) {
         throw error
       }
-      throw new Error(error instanceof Error ? error.message : 'Unknown GraphQL error')
+      // Do not inject fallback messages; propagate empty message when unknown
+      throw new Error(error instanceof Error ? error.message : '')
     }
   }
 
@@ -195,7 +196,7 @@ export async function safeQuery<T>(query: string, variables?: Record<string, any
       data: null,
       errors: [
         {
-          message: err?.message || 'Unknown error',
+          message: String(err?.message ?? ''),
           code: String(err?.code ?? 'UNKNOWN'),
           details: String(err?.message ?? ''),
           path: [],
@@ -222,7 +223,7 @@ export function useGraphQL() {
     } catch (error) {
       return {
         data: null,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: error instanceof Error ? error.message : '',
         loading: false,
       }
     }
@@ -238,7 +239,7 @@ export function useGraphQL() {
     } catch (error) {
       return {
         data: null,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: error instanceof Error ? error.message : '',
         loading: false,
       }
     }

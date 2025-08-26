@@ -62,30 +62,28 @@ export default function BillPage() {
       }
       const res = await billingService.createOrderSafe(input)
       if (res.errors) {
-        const msg = formatApiError(res.errors, 'Failed to create order')
-        setCreateError(msg)
-        addToast({ title: 'Order failed', description: msg, variant: 'destructive' })
+        const msg = formatApiError(res.errors, '')
+        setCreateError(msg || null)
+        if (msg) addToast({ title: msg, variant: 'destructive' })
         return
       }
       const result = res.data
-      // Basic confirmation and reset bill
-      if (result?.invoice_number) {
+      // Basic confirmation and reset bill (treat as success when data is present)
+      if (result) {
         addToast({
           title: 'Order created',
-          description: `Invoice ${result.invoice_number}. Total ${formatINR(result.total)}`,
+          description: result.invoice_number
+            ? `Invoice ${result.invoice_number}. Total ${formatINR(result.total)}`
+            : `Total ${formatINR(result.total)}`,
         })
         setBillItems([])
         setDiscount('0')
         // keep customer fields for convenience
-      } else {
-        const msg = 'Unexpected response from server'
-        setCreateError(msg)
-        addToast({ title: 'Order failed', description: msg, variant: 'destructive' })
       }
     } catch (e: any) {
-      const msg = e?.message || 'Failed to create order'
-      setCreateError(msg)
-      addToast({ title: 'Order failed', description: msg, variant: 'destructive' })
+      const msg = e?.message || ''
+      setCreateError(msg || null)
+      if (msg) addToast({ title: msg, variant: 'destructive' })
     } finally {
       setCreatingOrder(false)
     }
@@ -201,9 +199,9 @@ export default function BillPage() {
       .productByCodeSafe(raw)
       .then((res) => {
         if (res.errors) {
-          const msg = formatApiError(res.errors, 'Failed to fetch product')
-          setDetectedError(msg)
-          addToast({ title: 'Scan failed', description: msg, variant: 'destructive' })
+          const msg = formatApiError(res.errors, '')
+          setDetectedError(msg || null)
+          if (msg) addToast({ title: msg, variant: 'destructive' })
           return
         }
         const p = res.data
@@ -224,13 +222,24 @@ export default function BillPage() {
           setDetectedStock(Number(p.stock_quantity) || 0)
           setDetectedProductId(Number(p.id))
         } else {
-          setDetectedError('Product not found')
+          // Product not found is not an error from backend; allow manual entry
+          setDetectedInfo((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  item: {
+                    ...prev.item,
+                    name: `Scanned Item (${raw})`,
+                  },
+                }
+              : null
+          )
         }
       })
       .catch((e) => {
-        const msg = e?.message || 'Failed to fetch product'
-        setDetectedError(msg)
-        addToast({ title: 'Scan failed', description: msg, variant: 'destructive' })
+        const msg = e?.message || ''
+        setDetectedError(msg || null)
+        if (msg) addToast({ title: msg, variant: 'destructive' })
       })
       .finally(() => {
         setDetectedLoading(false)
@@ -318,7 +327,8 @@ export default function BillPage() {
         setScanning(true)
       }
     } catch (e: any) {
-      setScanError(e?.message || 'Failed to start scanner')
+      const msg = e?.message || ''
+      setScanError(msg || null)
       setScanning(false)
       stopScanner()
     } finally {

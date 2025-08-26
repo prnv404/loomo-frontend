@@ -100,7 +100,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
 export async function createOrderSafe(input: CreateOrderInput): Promise<ApiResponse<CreateOrderResult>> {
   const res = await safeMutate<{ createOrder: CreateOrderResult }>(GQL_CREATE_ORDER, { createOrderInput: input })
   if (!res.data) {
-    return { data: null, errors: res.errors ?? [{ message: 'Unknown error', code: 'UNKNOWN', details: '', path: [] }] }
+    return { data: null, errors: res.errors ?? null }
   }
   // @ts-ignore
   const payload = res.data.createOrder as CreateOrderResult

@@ -68,7 +68,7 @@ export const ordersService = {
     if (!res.data) {
       return {
         data: null,
-        errors: res.errors ?? [{ message: 'Unknown error', code: 'UNKNOWN', details: '', path: [] }],
+        errors: res.errors ?? null,
       }
     }
     const arr: StoreOrder[] = (res.data.orders ?? []).map((o) => ({
