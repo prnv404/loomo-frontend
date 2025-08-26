@@ -5,6 +5,7 @@ import Image from "next/image"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import ordersService from "@/lib/orders"
 
 type Status = "Pending" | "Accepted" | "Declined" | "Completed"
 
@@ -32,11 +33,34 @@ const formatDate = (iso: string) =>
 export default function OrdersPage() {
   const [tab, setTab] = React.useState<"store" | "online">("store")
 
-  const [storeOrders] = React.useState<Order[]>([
-    { id: "s1", invoice: "INV-1001", total: 1299, date: new Date().toISOString(), status: "Completed" },
-    { id: "s2", invoice: "INV-1000", total: 2599, date: new Date(Date.now() - 86400000).toISOString(), status: "Completed" },
-    { id: "s3", invoice: "INV-0999", total: 899, date: new Date(Date.now() - 2 * 86400000).toISOString(), status: "Completed" },
-  ])
+  const [storeOrders, setStoreOrders] = React.useState<Order[]>([])
+  const [loadingStore, setLoadingStore] = React.useState(true)
+
+  React.useEffect(() => {
+    let active = true
+    const load = async () => {
+      try {
+        const data = await ordersService.listStore()
+        if (!active) return
+        const mapped: Order[] = data.map((o) => ({
+          id: o.id,
+          invoice: o.invoice,
+          total: o.total,
+          date: o.date,
+          status: o.status,
+        }))
+        setStoreOrders(mapped)
+      } catch {
+        // keep empty
+      } finally {
+        if (active) setLoadingStore(false)
+      }
+    }
+    load()
+    return () => {
+      active = false
+    }
+  }, [])
 
   const [onlineOrders, setOnlineOrders] = React.useState<Order[]>([
     { id: "o1", invoice: "INV-2003", total: 1599, date: new Date().toISOString(), status: "Pending", customerName: "Rahul" },
@@ -61,14 +85,18 @@ export default function OrdersPage() {
     }
   }
 
-  const List = ({ data, type }: { data: Order[]; type: "store" | "online" }) => (
+  const List = ({ data, type, loading = false }: { data: Order[]; type: "store" | "online"; loading?: boolean }) => (
     <Card className="min-w-0">
       <CardHeader>
         <CardTitle>{type === "store" ? "Store Orders" : "Online Orders"}</CardTitle>
       </CardHeader>
       <CardContent className="min-w-0">
         {data.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No orders found.</p>
+          loading ? (
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          ) : (
+            <p className="text-sm text-muted-foreground">No orders found.</p>
+          )
         ) : (
           <div className="max-h-[60vh] sm:max-h-[70vh] overflow-y-auto scroll-bounce pr-1">
             <div className="divide-y">
@@ -150,7 +178,7 @@ export default function OrdersPage() {
         </Button>
       </div>
 
-      {tab === "store" ? <List data={storeOrders} type="store" /> : <List data={onlineOrders} type="online" />}
+      {tab === "store" ? <List data={storeOrders} type="store" loading={loadingStore} /> : <List data={onlineOrders} type="online" />}
     </div>
   )
 }

@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label'
 import { PlusCircle, MinusCircle, X, Bot, MessageSquare, Calendar as CalendarIcon } from 'lucide-react'
 import ThemeSwitcher from '@/components/theme-switcher'
 import ProfileMenu from '@/components/profile-menu'
+import billingService, { type CreateOrderInput } from '@/lib/billing'
+import { useToast } from '@/components/ui/toast'
 
 // Types
 type Category = 'Shirts' | 'Pants' | 'Shoes' | 'Accessories' | 'Custom'
@@ -18,6 +20,8 @@ type BillItem = {
   category: Category
   quantity: number
   price: number // per unit
+  productId?: number
+  stock?: number
 }
 
 const formatINR = (value: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value)
@@ -33,13 +37,58 @@ export default function BillPage() {
   const [customerPhone, setCustomerPhone] = React.useState('')
   const [customerName, setCustomerName] = React.useState('')
   const [customerDob, setCustomerDob] = React.useState('') // using native date input as calendar fallback
+  const [creatingOrder, setCreatingOrder] = React.useState(false)
+  const [createError, setCreateError] = React.useState<string | null>(null)
+  const { addToast } = useToast()
+  const handleGenerateBill = async () => {
+    try {
+      setCreateError(null)
+      setCreatingOrder(true)
+      const items = billItems
+        .filter((it) => typeof it.productId === 'number')
+        .map((it) => ({
+          product_id: it.productId as number,
+          price: Number(it.price) || 0,
+          quantity: Number(it.quantity) || 0,
+        }))
+      const input: CreateOrderInput = {
+        customer_name: customerName || undefined,
+        customer_phone: customerPhone,
+        dob: customerDob || undefined,
+        order_items: items,
+        discount: Math.max(0, parseFloat(discount || '0') || 0),
+        sub_total: subtotal,
+      }
+      const result = await billingService.createOrder(input)
+      // Basic confirmation and reset bill
+      if (result?.invoice_number) {
+        addToast({
+          title: 'Order created',
+          description: `Invoice ${result.invoice_number}. Total ${formatINR(result.total)}`,
+        })
+        setBillItems([])
+        setDiscount('0')
+        // keep customer fields for convenience
+      }
+    } catch (e: any) {
+      const msg = e?.message || 'Failed to create order'
+      setCreateError(msg)
+      addToast({ title: 'Order failed', description: msg, variant: 'destructive' })
+    } finally {
+      setCreatingOrder(false)
+    }
+  }
 
   // Derived totals
   const subtotal = billItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const discountValue = Math.max(0, parseFloat(discount || '0') || 0)
   const total = Math.max(0, subtotal - discountValue)
 
-  const canFinalize = customerPhone.trim().length > 0 && billItems.length > 0
+  const phoneValid = /^[0-9]{10}$/.test(customerPhone.trim())
+  const phoneError = customerPhone.trim().length === 0 ? 'Phone is required' : phoneValid ? null : 'Enter a valid 10-digit phone number'
+  const stockOk = billItems.every((it) => it.stock == null || it.quantity <= it.stock)
+  const allHaveProductIds = billItems.every((it) => typeof it.productId === 'number')
+  const canFinalize = phoneValid && billItems.length > 0 && allHaveProductIds && stockOk && !creatingOrder
 
   // Scanner state and refs
   const videoRef = React.useRef<HTMLVideoElement | null>(null)
@@ -55,6 +104,10 @@ export default function BillPage() {
     item: BillItem
   } | null>(null)
   const [detectedPrice, setDetectedPrice] = React.useState<string>('')
+  const [detectedLoading, setDetectedLoading] = React.useState(false)
+  const [detectedError, setDetectedError] = React.useState<string | null>(null)
+  const [detectedStock, setDetectedStock] = React.useState<number | null>(null)
+  const [detectedProductId, setDetectedProductId] = React.useState<number | null>(null)
 
   // Viewport gating (mobile vs desktop)
   const [isMobile, setIsMobile] = React.useState<boolean>(() => {
@@ -104,13 +157,7 @@ export default function BillPage() {
     } catch {}
   }
 
-  const formatCodeName = (code: string) => `Scanned Item (${code})`
-
-  const inventoryMap: Record<string, { name: string; price: number; category: Category }> = {
-    '8901234567890': { name: 'Classic White Shirt', price: 899, category: 'Shirts' },
-    '8901234567891': { name: 'Slim-Fit Chinos', price: 1299, category: 'Pants' },
-    '8901234567892': { name: 'Leather Loafers', price: 2499, category: 'Shoes' },
-  }
+  // Product details are fetched from backend on scan
 
   const onDetected = (raw: string) => {
     const now = Date.now()
@@ -120,27 +167,53 @@ export default function BillPage() {
     lastScanRef.current = { value: raw, at: now }
     beep()
     haptic()
-    const found = inventoryMap[raw]
-    const item: BillItem = found
-      ? {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          name: found.name,
-          category: found.category,
-          quantity: 1,
-          price: found.price,
-        }
-      : {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          name: formatCodeName(raw),
-          category: 'Custom',
-          quantity: 1,
-          price: 0,
-        }
-    // Do not add to bill yet. Show popup to confirm price.
-    setDetectedInfo({ code: raw, item })
-    setDetectedPrice(String(item.price ?? 0))
+    // Show dialog in loading state
+    setDetectedLoading(true)
+    setDetectedError(null)
+    setDetectedStock(null)
+    setDetectedProductId(null)
+    setDetectedInfo({
+      code: raw,
+      item: {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: 'Loading…',
+        category: 'Custom',
+        quantity: 1,
+        price: 0,
+      },
+    })
+    setDetectedPrice('')
     stopScanner()
     setWantScanning(false)
+    billingService
+      .productByCode(raw)
+      .then((p) => {
+        if (p) {
+          setDetectedInfo((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  item: {
+                    ...prev.item,
+                    name: p.name || `Scanned Item (${raw})`,
+                    price: Number(p.price) || 0,
+                  },
+                }
+              : null
+          )
+          setDetectedPrice(String(Number(p.price) || 0))
+          setDetectedStock(Number(p.stock_quantity) || 0)
+          setDetectedProductId(Number(p.id))
+        } else {
+          setDetectedError('Product not found')
+        }
+      })
+      .catch(() => {
+        setDetectedError('Failed to fetch product')
+      })
+      .finally(() => {
+        setDetectedLoading(false)
+      })
   }
 
   const stopStream = () => {
@@ -284,7 +357,16 @@ export default function BillPage() {
   // (Removed resetForm and addToBill)
 
   const incQty = (id: string) => {
-    setBillItems((prev) => prev.map((it) => (it.id === id ? { ...it, quantity: it.quantity + 1 } : it)))
+    setBillItems((prev) =>
+      prev.map((it) => {
+        if (it.id !== id) return it
+        if (typeof it.stock === 'number' && it.quantity + 1 > it.stock) {
+          addToast({ variant: 'destructive', title: 'Out of stock', description: `Only ${it.stock} in stock` })
+          return it
+        }
+        return { ...it, quantity: it.quantity + 1 }
+      })
+    )
   }
 
   const decQty = (id: string) => {
@@ -505,6 +587,9 @@ export default function BillPage() {
                       onChange={(e) => setCustomerPhone(e.target.value)}
                       required
                     />
+                    {phoneError && (
+                      <p className="text-sm text-red-500">{phoneError}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="cust-name">Customer Name (optional)</Label>
@@ -531,15 +616,16 @@ export default function BillPage() {
 
                 {/* Actions */}
                 <div className="flex items-center gap-3">
-                  <Button type="button" variant="outline" disabled={!customerPhone.trim()} className="flex-1">
+                  <Button type="button" variant="outline" disabled={!phoneValid} className="flex-1">
                     <Bot className="h-4 w-4 mr-2" /> WhatsApp
                   </Button>
-                  <Button type="button" variant="outline" disabled={!customerPhone.trim()} className="flex-1">
+                  <Button type="button" variant="outline" disabled={!phoneValid} className="flex-1">
                     <MessageSquare className="h-4 w-4 mr-2" /> SMS
                   </Button>
                 </div>
-                <Button type="button" size="lg" disabled={!canFinalize} className="w-full">
-                  Generate Bill
+                {createError && <p className="text-sm text-red-500">{createError}</p>}
+                <Button type="button" size="lg" disabled={!canFinalize} className="w-full" onClick={handleGenerateBill}>
+                  {creatingOrder ? 'Generating…' : 'Generate Bill'}
                 </Button>
               </CardContent>
             </Card>
@@ -559,30 +645,45 @@ export default function BillPage() {
                 <div className="text-muted-foreground">Code</div>
                 <div className="font-mono break-all">{detectedInfo.code}</div>
               </div>
-              <div className="text-sm">
-                <div className="text-muted-foreground">Item</div>
-                <div className="font-medium">{detectedInfo.item.name}</div>
-                <div className="text-xs text-muted-foreground">
-                  {detectedInfo.item.category} — {formatINR(detectedInfo.item.price)}
+              {detectedLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span className="inline-block h-4 w-4 rounded-full border-2 border-muted-foreground/30 border-t-primary animate-spin" />
+                  Loading product…
                 </div>
-                <div className="text-xs text-muted-foreground">Qty: {detectedInfo.item.quantity}</div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="detected-price">Price</Label>
-                <Input
-                  id="detected-price"
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min={0}
-                  value={detectedPrice}
-                  onChange={(e) => setDetectedPrice(e.target.value)}
-                />
-              </div>
+              ) : (
+                <>
+                  <div className="text-sm">
+                    <div className="text-muted-foreground">Item</div>
+                    <div className="font-medium">{detectedInfo.item.name}</div>
+                    <div className="text-xs text-muted-foreground">Qty: {detectedInfo.item.quantity}</div>
+                    {detectedStock !== null && (
+                      <div className="text-xs text-muted-foreground">In stock: {detectedStock}</div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="detected-price">Price</Label>
+                    <Input
+                      id="detected-price"
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min={0}
+                      value={detectedPrice}
+                      onChange={(e) => setDetectedPrice(e.target.value)}
+                    />
+                  </div>
+                  {detectedError && <p className="text-sm text-red-500">{detectedError}</p>}
+                </>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 w-full min-w-0">
                 <Button
                   className="w-full min-w-0 whitespace-normal text-center"
-                  disabled={!detectedPrice.trim()}
+                  disabled={
+                    !detectedPrice.trim() ||
+                    detectedLoading ||
+                    !!detectedError ||
+                    (detectedStock !== null && detectedStock <= 0)
+                  }
                   onClick={() => {
                     if (!detectedInfo) return
                     const p = Math.max(0, parseFloat(detectedPrice || '0') || 0)
@@ -591,14 +692,25 @@ export default function BillPage() {
                       ...base,
                       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                       price: p,
+                      productId: detectedProductId ?? undefined,
+                      stock: detectedStock ?? undefined,
                     }
                     setBillItems((prev) => {
-                      const idx = prev.findIndex(
-                        (it) => it.name === newItem.name && it.price === newItem.price && it.category === newItem.category
+                      const idx = prev.findIndex((it) =>
+                        (newItem.productId && it.productId === newItem.productId && it.price === newItem.price) ||
+                        (!newItem.productId && it.name === newItem.name && it.price === newItem.price && it.category === newItem.category)
                       )
                       if (idx !== -1) {
                         const copy = [...prev]
-                        copy[idx] = { ...copy[idx], quantity: copy[idx].quantity + newItem.quantity }
+                        const existing = copy[idx]
+                        const max = typeof (existing.stock ?? newItem.stock) === 'number' ? (existing.stock ?? newItem.stock)! : Infinity
+                        const desired = existing.quantity + newItem.quantity
+                        if (desired > max) {
+                          copy[idx] = { ...existing, quantity: max }
+                          addToast({ variant: 'destructive', title: 'Stock limit reached', description: `Only ${max} available` })
+                        } else {
+                          copy[idx] = { ...existing, quantity: desired }
+                        }
                         return copy
                       }
                       return [newItem, ...prev]
@@ -611,7 +723,12 @@ export default function BillPage() {
                 <Button
                   className="w-full min-w-0 whitespace-normal text-center"
                   variant="outline"
-                  disabled={!detectedPrice.trim()}
+                  disabled={
+                    !detectedPrice.trim() ||
+                    detectedLoading ||
+                    !!detectedError ||
+                    (detectedStock !== null && detectedStock <= 0)
+                  }
                   onClick={() => {
                     if (!detectedInfo) return
                     const p = Math.max(0, parseFloat(detectedPrice || '0') || 0)
@@ -620,14 +737,25 @@ export default function BillPage() {
                       ...base,
                       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                       price: p,
+                      productId: detectedProductId ?? undefined,
+                      stock: detectedStock ?? undefined,
                     }
                     setBillItems((prev) => {
-                      const idx = prev.findIndex(
-                        (it) => it.name === newItem.name && it.price === newItem.price && it.category === newItem.category
+                      const idx = prev.findIndex((it) =>
+                        (newItem.productId && it.productId === newItem.productId && it.price === newItem.price) ||
+                        (!newItem.productId && it.name === newItem.name && it.price === newItem.price && it.category === newItem.category)
                       )
                       if (idx !== -1) {
                         const copy = [...prev]
-                        copy[idx] = { ...copy[idx], quantity: copy[idx].quantity + newItem.quantity }
+                        const existing = copy[idx]
+                        const max = typeof (existing.stock ?? newItem.stock) === 'number' ? (existing.stock ?? newItem.stock)! : Infinity
+                        const desired = existing.quantity + newItem.quantity
+                        if (desired > max) {
+                          copy[idx] = { ...existing, quantity: max }
+                          addToast({ variant: 'destructive', title: 'Stock limit reached', description: `Only ${max} available` })
+                        } else {
+                          copy[idx] = { ...existing, quantity: desired }
+                        }
                         return copy
                       }
                       return [newItem, ...prev]

@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { OfflineIndicator } from '@/components/offline-indicator'
 import { InstallPrompt } from '@/components/install-prompt'
 import { ThemeProvider } from '@/components/theme-provider'
+import { ToastProvider } from '@/components/ui/toast'
 import ClientAuthGate from '@/components/client-auth-gate'
 
 const lexend = Lexend({
@@ -78,13 +79,15 @@ export default function RootLayout({
         )}
       >
         <ThemeProvider defaultTheme="dark" storageKey="loomo-theme">
-          <ClientAuthGate>
-            <div className="relative flex min-h-screen flex-col">
-              <div className="flex-1">{children}</div>
-              <OfflineIndicator />
-              <InstallPrompt />
-            </div>
-          </ClientAuthGate>
+          <ToastProvider>
+            <ClientAuthGate>
+              <div className="relative flex min-h-screen flex-col">
+                <div className="flex-1">{children}</div>
+                <OfflineIndicator />
+                <InstallPrompt />
+              </div>
+            </ClientAuthGate>
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>
