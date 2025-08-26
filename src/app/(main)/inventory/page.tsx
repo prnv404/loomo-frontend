@@ -12,6 +12,7 @@ import { Plus, Search, Filter, ScanLine, X, Pencil, ChevronDown } from 'lucide-r
 import ThemeSwitcher from '@/components/theme-switcher'
 import ProfileMenu from '@/components/profile-menu'
 import Link from 'next/link'
+import { Skeleton } from '@/components/ui/skeleton'
 
 const currency = (v: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(v)
 
@@ -310,8 +311,66 @@ export default function InventoryPage() {
           <CardTitle>Products</CardTitle>
         </CardHeader>
         <CardContent>
-          {items.length === 0 && !loading ? (
-            <p className="text-sm text-muted-foreground">No products found.</p>
+          {items.length === 0 ? (
+            loading ? (
+              <div className="space-y-2">
+                {/* Mobile stacked skeletons */}
+                <div className="sm:hidden divide-y">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="py-3">
+                      <Skeleton className="h-4 w-48" />
+                      <div className="mt-2 flex items-center gap-2">
+                        <Skeleton className="h-5 w-16" />
+                        <Skeleton className="h-4 w-24" />
+                      </div>
+                      <Skeleton className="mt-2 h-4 w-24" />
+                    </div>
+                  ))}
+                </div>
+                {/* Desktop table skeletons */}
+                <div className="hidden sm:block">
+                  <table className="w-full table-fixed text-sm">
+                    <thead>
+                      <tr className="text-left border-b">
+                        <th className="py-2 pr-2">Name</th>
+                        <th className="py-2 pr-2 w-36">Category</th>
+                        <th className="py-2 pr-2 w-48">Barcode</th>
+                        <th className="py-2 pr-2 w-28 text-right">Cost</th>
+                        <th className="py-2 pr-2 w-28 text-right">Price</th>
+                        <th className="py-2 w-24" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.from({ length: 8 }).map((_, i) => (
+                        <tr key={i} className="border-b last:border-0">
+                          <td className="py-2 pr-2 align-top min-w-0">
+                            <Skeleton className="h-4 w-48" />
+                            <Skeleton className="mt-2 h-3 w-40" />
+                          </td>
+                          <td className="py-2 pr-2 align-middle">
+                            <Skeleton className="h-5 w-20" />
+                          </td>
+                          <td className="py-2 pr-2 align-middle">
+                            <Skeleton className="h-4 w-32" />
+                          </td>
+                          <td className="py-2 pr-2 align-middle text-right">
+                            <Skeleton className="h-4 w-16 ml-auto" />
+                          </td>
+                          <td className="py-2 pr-2 align-middle text-right">
+                            <Skeleton className="h-4 w-16 ml-auto" />
+                          </td>
+                          <td className="py-2 align-middle">
+                            <Skeleton className="h-8 w-16" />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No products found.</p>
+            )
           ) : (
             <div className="max-h-[60vh] overflow-y-auto overflow-x-hidden">
               {/* Mobile stacked */}

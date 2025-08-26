@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import ordersService from "@/lib/orders"
 import { formatApiError } from "@/lib/api"
 import { useToast } from "@/components/ui/toast"
+import { Skeleton } from "@/components/ui/skeleton"
 
 type Status = "Pending" | "Accepted" | "Declined" | "Completed"
 
@@ -107,7 +108,32 @@ export default function OrdersPage() {
         )}
         {data.length === 0 ? (
           loading ? (
-            <p className="text-sm text-muted-foreground">Loading...</p>
+            <div className="space-y-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 py-3 min-w-0">
+                  <div className="flex-1 min-w-0">
+                    <Skeleton className="h-4 w-40" />
+                    {type === 'store' ? (
+                      <Skeleton className="mt-2 h-3 w-28" />
+                    ) : (
+                      <div className="mt-2 space-y-1">
+                        <Skeleton className="h-3 w-28" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                    )}
+                  </div>
+                  <Skeleton className="h-4 w-24" />
+                  {type === 'store' ? (
+                    <Skeleton className="h-5 w-20" />
+                  ) : (
+                    <div className="flex gap-2">
+                      <Skeleton className="h-8 w-16" />
+                      <Skeleton className="h-8 w-16" />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           ) : (
             <p className="text-sm text-muted-foreground">No orders found.</p>
           )

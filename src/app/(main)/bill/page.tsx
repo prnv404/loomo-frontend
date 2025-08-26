@@ -11,6 +11,7 @@ import ProfileMenu from '@/components/profile-menu'
 import billingService, { type CreateOrderInput } from '@/lib/billing'
 import { useToast } from '@/components/ui/toast'
 import { formatApiError } from '@/lib/api'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // Types
 type Category = 'Shirts' | 'Pants' | 'Shoes' | 'Accessories' | 'Custom'
@@ -677,9 +678,19 @@ export default function BillPage() {
                 <div className="font-mono break-all">{detectedInfo.code}</div>
               </div>
               {detectedLoading ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span className="inline-block h-4 w-4 rounded-full border-2 border-muted-foreground/30 border-t-primary animate-spin" />
-                  Loading product…
+                <div className="space-y-3">
+                  <div className="text-sm">
+                    <div className="text-muted-foreground">Item</div>
+                    <Skeleton className="mt-1 h-4 w-40" />
+                    <div className="mt-2 space-y-1">
+                      <Skeleton className="h-3 w-24" />
+                      <Skeleton className="h-3 w-32" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-12" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
                 </div>
               ) : (
                 <>
