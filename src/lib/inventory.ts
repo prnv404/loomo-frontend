@@ -9,6 +9,14 @@ export type Product = {
   sellingPrice: number
   createdAt: string
   updatedAt: string
+  // Optional extended attributes
+  description?: string
+  size?: string
+  color?: string
+  stockQuantity?: number
+  offerType?: 'NONE' | 'PERCENTAGE' | 'FLAT'
+  offerValue?: number
+  images?: string[]
 }
 
 export type CreateProductInput = {
@@ -17,6 +25,14 @@ export type CreateProductInput = {
   category: string
   costPrice: number
   sellingPrice: number
+  // Optional extended attributes
+  description?: string
+  size?: string
+  color?: string
+  stockQuantity?: number
+  offerType?: 'NONE' | 'PERCENTAGE' | 'FLAT'
+  offerValue?: number
+  images?: string[]
 }
 
 export type Category = {
@@ -142,6 +158,13 @@ const createLocal = (input: CreateProductInput): Product => {
     sellingPrice: Math.max(0, Number(input.sellingPrice) || 0),
     createdAt: nowIso(),
     updatedAt: nowIso(),
+    description: input.description?.trim() || undefined,
+    size: input.size?.trim() || undefined,
+    color: input.color?.trim() || undefined,
+    stockQuantity: Number(input.stockQuantity) || 0,
+    offerType: input.offerType || 'NONE',
+    offerValue: Math.max(0, Number(input.offerValue) || 0),
+    images: input.images?.slice(0) || [],
   }
   all.unshift(prod)
   saveLocal(all)
@@ -257,7 +280,8 @@ export const inventoryService = {
         cost_price: Number(input.costPrice) || 0,
         barcode: input.barcode?.trim() || undefined,
         price: Number(input.sellingPrice) || 0,
-        stock_quantity: 1,
+        // If backend supports this field, use provided stock; otherwise backend may ignore it
+        stock_quantity: Number(input.stockQuantity) || 1,
       }
       const data = await graphqlClient.mutate<{ createProduct: any }>(GQL_CREATE_PRODUCT, { createProductInput })
       const r = (data as any)?.createProduct
@@ -271,6 +295,14 @@ export const inventoryService = {
           sellingPrice: Number(r.price) || 0,
           createdAt: r.updatedAt || new Date().toISOString(),
           updatedAt: r.updatedAt || new Date().toISOString(),
+          // Echo back optional fields from input so UI can reflect them immediately
+          description: input.description?.trim() || undefined,
+          size: input.size?.trim() || undefined,
+          color: input.color?.trim() || undefined,
+          stockQuantity: Number(input.stockQuantity) || 1,
+          offerType: input.offerType || 'NONE',
+          offerValue: Math.max(0, Number(input.offerValue) || 0),
+          images: input.images?.slice(0) || [],
         }
       }
     } catch {

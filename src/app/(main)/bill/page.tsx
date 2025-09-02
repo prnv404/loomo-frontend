@@ -34,6 +34,11 @@ export default function BillPage() {
   // Bill state
   const [billItems, setBillItems] = React.useState<BillItem[]>([])
 
+  // Mode & Quick bill state
+  const [mode, setMode] = React.useState<'items' | 'quick'>('items')
+  const [manualSubtotal, setManualSubtotal] = React.useState<string>('0')
+  const [manualDiscount, setManualDiscount] = React.useState<string>('0')
+
   // Finalize state
   const [discount, setDiscount] = React.useState<string>('0')
   const [customerPhone, setCustomerPhone] = React.useState('')
@@ -42,7 +47,7 @@ export default function BillPage() {
   const [creatingOrder, setCreatingOrder] = React.useState(false)
   const [createError, setCreateError] = React.useState<string | null>(null)
   const { addToast } = useToast()
-  const handleGenerateBill = async () => {
+  const handleGenerateBillItems = async () => {
     try {
       setCreateError(null)
       setCreatingOrder(true)
@@ -58,7 +63,7 @@ export default function BillPage() {
         customer_phone: customerPhone,
         dob: customerDob || undefined,
         order_items: items,
-        discount: Math.max(0, parseFloat(discount || '0') || 0),
+        discount: Math.min(discountValue, subtotal),
         sub_total: subtotal,
       }
       const res = await billingService.createOrderSafe(input)
@@ -90,16 +95,66 @@ export default function BillPage() {
     }
   }
 
-  // Derived totals
+  const handleGenerateQuickBill = async () => {
+    try {
+      setCreateError(null)
+      setCreatingOrder(true)
+      const input: CreateOrderInput = {
+        customer_name: customerName || undefined,
+        customer_phone: customerPhone,
+        dob: customerDob || undefined,
+        order_items: [],
+        discount: Math.min(manualDiscountNum, manualSubtotalNum),
+        sub_total: manualSubtotalNum,
+      }
+      const res = await billingService.createOrderSafe(input)
+      if (res.errors) {
+        const msg = formatApiError(res.errors, '')
+        setCreateError(msg || null)
+        if (msg) addToast({ title: msg, variant: 'destructive' })
+        return
+      }
+      const result = res.data
+      if (result) {
+        addToast({
+          title: 'Order created',
+          description: result.invoice_number
+            ? `Invoice ${result.invoice_number}. Total ${formatINR(result.total)}`
+            : `Total ${formatINR(result.total)}`,
+        })
+        // Reset quick bill inputs (keep customer fields for convenience)
+        setManualSubtotal('0')
+        setManualDiscount('0')
+      }
+    } catch (e: any) {
+      const msg = e?.message || ''
+      setCreateError(msg || null)
+      if (msg) addToast({ title: msg, variant: 'destructive' })
+    } finally {
+      setCreatingOrder(false)
+    }
+  }
+
+  // Derived totals (items mode)
   const subtotal = billItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const discountValue = Math.max(0, parseFloat(discount || '0') || 0)
   const total = Math.max(0, subtotal - discountValue)
+
+  // Derived totals (quick mode)
+  const manualSubtotalNum = Math.max(0, parseFloat(manualSubtotal || '0') || 0)
+  const manualDiscountNum = Math.max(0, parseFloat(manualDiscount || '0') || 0)
+  const manualTotal = Math.max(0, manualSubtotalNum - manualDiscountNum)
+
+  // Validation: discount should not exceed subtotal
+  const discountTooHigh = discountValue > subtotal
+  const manualDiscountTooHigh = manualDiscountNum > manualSubtotalNum
 
   const phoneValid = /^[0-9]{10}$/.test(customerPhone.trim())
   const phoneError = customerPhone.trim().length === 0 ? 'Phone is required' : phoneValid ? null : 'Enter a valid 10-digit phone number'
   const stockOk = billItems.every((it) => it.stock == null || it.quantity <= it.stock)
   const allHaveProductIds = billItems.every((it) => typeof it.productId === 'number')
-  const canFinalize = phoneValid && billItems.length > 0 && allHaveProductIds && stockOk && !creatingOrder
+  const canFinalizeItems = phoneValid && billItems.length > 0 && allHaveProductIds && stockOk && !creatingOrder && !discountTooHigh
+  const canFinalizeQuick = phoneValid && manualSubtotalNum > 0 && !creatingOrder && !manualDiscountTooHigh
 
   // Scanner state and refs
   const videoRef = React.useRef<HTMLVideoElement | null>(null)
@@ -386,6 +441,16 @@ export default function BillPage() {
     }
   }, [wantScanning, isMobile])
 
+  // Respond to mode changes: ensure scanner is stopped in quick mode, and focus hardware input on items mode (desktop)
+  React.useEffect(() => {
+    if (mode === 'quick') {
+      setWantScanning(false)
+      stopScanner()
+    } else if (mode === 'items' && !isMobile) {
+      setTimeout(() => hardwareInputRef.current?.focus(), 0)
+    }
+  }, [mode, isMobile])
+
   // (Removed resetForm and addToBill)
 
   const incQty = (id: string) => {
@@ -428,8 +493,33 @@ export default function BillPage() {
         </div>
       </div>
 
-      {/* Scanner */}
+      {/* Billing Mode */}
       <Card>
+        <CardHeader>
+          <CardTitle>Billing Mode</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant={mode === 'items' ? 'default' : 'outline'}
+              onClick={() => setMode('items')}
+            >
+              Scan & Items
+            </Button>
+            <Button
+              type="button"
+              variant={mode === 'quick' ? 'default' : 'outline'}
+              onClick={() => { setMode('quick'); setWantScanning(false); stopScanner() }}
+            >
+              Quick Total
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Scanner */}
+      {mode === 'items' && (<Card>
         <CardHeader>
           <CardTitle>Barcode Scanner</CardTitle>
         </CardHeader>
@@ -486,10 +576,116 @@ export default function BillPage() {
             Status: {isMobile ? (scanning ? 'Scanning… point camera at a barcode' : 'Idle') : 'Hardware scanner ready — focus the input and scan (press Enter)'}
           </p>
         </CardContent>
-      </Card>
+      </Card>)}
 
       <div className="flex flex-col gap-4 min-w-0 overflow-x-hidden">
         {/* Bill View */}
+
+        {/* Quick Billing (no items) */}
+        {mode === 'quick' && (
+          <Card className="min-w-0">
+            <CardHeader>
+              <CardTitle>Quick Billing</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Summary */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <Label htmlFor="manual-subtotal" className="text-muted-foreground">Sub Total</Label>
+                  <Input
+                    id="manual-subtotal"
+                    type="number"
+                    inputMode="decimal"
+                    className="max-w-[150px]"
+                    value={manualSubtotal}
+                    onChange={(e) => setManualSubtotal(e.target.value)}
+                    min={0}
+                    step="0.01"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <Label htmlFor="manual-discount" className="text-muted-foreground">Discount</Label>
+                  <Input
+                    id="manual-discount"
+                    type="number"
+                    inputMode="decimal"
+                    className="max-w-[150px]"
+                    value={manualDiscount}
+                    onChange={(e) => setManualDiscount(e.target.value)}
+                    min={0}
+                    max={manualSubtotalNum}
+                    step="0.01"
+                  />
+                </div>
+                {manualDiscountTooHigh && (
+                  <p className="text-xs text-red-500">Discount cannot exceed subtotal</p>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">Total</span>
+                  <span className="font-bold text-xl">{formatINR(manualTotal)}</span>
+                </div>
+              </div>
+
+              {/* Customer Info */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="phone">Customer Phone</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="Enter phone number"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    required
+                  />
+                  {phoneError && (
+                    <p className="text-sm text-red-500">{phoneError}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cust-name">Customer Name (optional)</Label>
+                  <Input
+                    id="cust-name"
+                    placeholder="Enter name"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dob">Date of Birth (optional)</Label>
+                  <div className="flex items-center gap-2">
+                    <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="dob"
+                      type="date"
+                      value={customerDob}
+                      onChange={(e) => setCustomerDob(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-3">
+                <Button type="button" variant="outline" disabled={!phoneValid} className="flex-1">
+                  <Bot className="h-4 w-4 mr-2" /> WhatsApp
+                </Button>
+                <Button type="button" variant="outline" disabled={!phoneValid} className="flex-1">
+                  <MessageSquare className="h-4 w-4 mr-2" /> SMS
+                </Button>
+              </div>
+              {createError && <p className="text-sm text-red-500">{createError}</p>}
+              <Button type="button" size="lg" disabled={!canFinalizeQuick} className="w-full" onClick={handleGenerateQuickBill}>
+                {creatingOrder ? 'Generating…' : 'Generate Bill'}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Items flow */}
+        {mode === 'items' && (
         <div className="flex flex-col gap-4 min-w-0 overflow-x-hidden">
           {/* Current Bill */}
           <Card className="min-w-0">
@@ -596,9 +792,13 @@ export default function BillPage() {
                       value={discount}
                       onChange={(e) => setDiscount(e.target.value)}
                       min={0}
+                      max={subtotal}
                       step="0.01"
                     />
                   </div>
+                  {discountTooHigh && (
+                    <p className="text-xs text-red-500">Discount cannot exceed subtotal</p>
+                  )}
                   <div className="flex items-center justify-between">
                     <span className="font-semibold">Total</span>
                     <span className="font-bold text-xl">{formatINR(total)}</span>
@@ -656,17 +856,18 @@ export default function BillPage() {
                   </Button>
                 </div>
                 {createError && <p className="text-sm text-red-500">{createError}</p>}
-                <Button type="button" size="lg" disabled={!canFinalize} className="w-full" onClick={handleGenerateBill}>
+                <Button type="button" size="lg" disabled={!canFinalizeItems} className="w-full" onClick={handleGenerateBillItems}>
                   {creatingOrder ? 'Generating…' : 'Generate Bill'}
                 </Button>
               </CardContent>
             </Card>
           )}
         </div>
+        )}
       </div>
 
       {/* Detected popup */}
-      {detectedInfo && (
+      {mode === 'items' && detectedInfo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
           <Card className="w-full max-w-sm bg-background shadow-xl overflow-hidden">
             <CardHeader>
