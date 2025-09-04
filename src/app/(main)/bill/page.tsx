@@ -493,15 +493,7 @@ export default function BillPage() {
         </div>
       </div>
 
-      {/* Billing Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Billing</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">Quick Total mode only. Scanning and itemized billing are disabled.</p>
-        </CardContent>
-      </Card>
+      {/* Billing Info removed */}
 
       {/* Scanner */}
       {mode === 'items' && (<Card>

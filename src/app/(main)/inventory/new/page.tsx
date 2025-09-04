@@ -173,12 +173,7 @@ export default function NewProductPage() {
           <div className="flex items-center gap-2">
             <ThemeSwitcher />
             <ProfileMenu />
-            <Button variant="outline" onClick={() => save(true)} disabled={!canSave || saving}>
-              Save & Add Next
-            </Button>
-            <Button onClick={() => save(false)} disabled={!canSave || saving}>
-              Save
-            </Button>
+            {/* Actions moved to bottom */}
           </div>
         </div>
       </div>
@@ -373,6 +368,16 @@ export default function NewProductPage() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => save(true)} disabled={!canSave || saving}>
+              Save & Add Next
+            </Button>
+            <Button onClick={() => save(false)} disabled={!canSave || saving}>
+              Save
+            </Button>
           </div>
         </CardContent>
       </Card>
