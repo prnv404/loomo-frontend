@@ -34,8 +34,8 @@ export default function BillPage() {
   // Bill state
   const [billItems, setBillItems] = React.useState<BillItem[]>([])
 
-  // Mode & Quick bill state
-  const [mode, setMode] = React.useState<'items' | 'quick'>('items')
+  // Mode & Quick bill state (force Quick Total)
+  const [mode, setMode] = React.useState<'items' | 'quick'>('quick')
   const [manualSubtotal, setManualSubtotal] = React.useState<string>('0')
   const [manualDiscount, setManualDiscount] = React.useState<string>('0')
 
@@ -493,28 +493,13 @@ export default function BillPage() {
         </div>
       </div>
 
-      {/* Billing Mode */}
+      {/* Billing Info */}
       <Card>
         <CardHeader>
-          <CardTitle>Billing Mode</CardTitle>
+          <CardTitle>Billing</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              variant={mode === 'items' ? 'default' : 'outline'}
-              onClick={() => setMode('items')}
-            >
-              Scan & Items
-            </Button>
-            <Button
-              type="button"
-              variant={mode === 'quick' ? 'default' : 'outline'}
-              onClick={() => { setMode('quick'); setWantScanning(false); stopScanner() }}
-            >
-              Quick Total
-            </Button>
-          </div>
+          <p className="text-sm text-muted-foreground">Quick Total mode only. Scanning and itemized billing are disabled.</p>
         </CardContent>
       </Card>
 
@@ -582,12 +567,11 @@ export default function BillPage() {
         {/* Bill View */}
 
         {/* Quick Billing (no items) */}
-        {mode === 'quick' && (
-          <Card className="min-w-0">
-            <CardHeader>
-              <CardTitle>Quick Billing</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        <Card className="min-w-0">
+          <CardHeader>
+            <CardTitle>Quick Billing</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
               {/* Summary */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between gap-2 text-sm">
@@ -682,7 +666,6 @@ export default function BillPage() {
               </Button>
             </CardContent>
           </Card>
-        )}
 
         {/* Items flow */}
         {mode === 'items' && (

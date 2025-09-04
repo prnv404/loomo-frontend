@@ -21,8 +21,8 @@ export default function NewProductPage() {
   const [cost, setCost] = React.useState('')
   const [price, setPrice] = React.useState('')
   const [description, setDescription] = React.useState('')
-  const [size, setSize] = React.useState('')
-  const [color, setColor] = React.useState('')
+  const [sizes, setSizes] = React.useState<string[]>([])
+  const [colors, setColors] = React.useState<string[]>([])
   const [stockQty, setStockQty] = React.useState('')
   const [offerType, setOfferType] = React.useState<'NONE' | 'PERCENTAGE' | 'FLAT'>('NONE')
   const [offerValue, setOfferValue] = React.useState('')
@@ -93,8 +93,8 @@ export default function NewProductPage() {
     setCost('')
     setPrice('')
     setDescription('')
-    setSize('')
-    setColor('')
+    setSizes([])
+    setColors([])
     setStockQty('')
     setOfferType('NONE')
     setOfferValue('')
@@ -136,8 +136,8 @@ export default function NewProductPage() {
         costPrice: Number(cost) || 0,
         sellingPrice: Number(price) || 0,
         description: description.trim() || undefined,
-        size: size.trim() || undefined,
-        color: color.trim() || undefined,
+        sizes,
+        colors,
         stockQuantity: stockNum,
         offerType,
         offerValue: offerType === 'NONE' ? 0 : offerValNum,
@@ -218,37 +218,43 @@ export default function NewProductPage() {
             </div>
           </div>
 
-          {/* Size & Color */}
+          {/* Sizes & Colors (multi-select) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Size</Label>
+              <Label>Sizes</Label>
               <select
-                className="w-full h-9 rounded-md border bg-background px-2 text-sm"
-                value={size}
-                onChange={(e) => setSize(e.target.value)}
+                multiple
+                className="w-full min-h-[2.5rem] rounded-md border bg-background px-2 text-sm"
+                value={sizes}
+                onChange={(e) =>
+                  setSizes(Array.from(e.target.selectedOptions).map((o) => o.value))
+                }
               >
-                <option value="">Select size</option>
                 {sizeOptions.map((s) => (
                   <option key={s} value={s}>
                     {s}
                   </option>
                 ))}
               </select>
+              <p className="text-xs text-muted-foreground">Hold Ctrl/Cmd to select multiple</p>
             </div>
             <div className="space-y-2">
-              <Label>Color</Label>
+              <Label>Colors</Label>
               <select
-                className="w-full h-9 rounded-md border bg-background px-2 text-sm"
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
+                multiple
+                className="w-full min-h-[2.5rem] rounded-md border bg-background px-2 text-sm"
+                value={colors}
+                onChange={(e) =>
+                  setColors(Array.from(e.target.selectedOptions).map((o) => o.value))
+                }
               >
-                <option value="">Select color</option>
                 {colorOptions.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
                 ))}
               </select>
+              <p className="text-xs text-muted-foreground">Hold Ctrl/Cmd to select multiple</p>
             </div>
           </div>
 

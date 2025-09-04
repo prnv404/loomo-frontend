@@ -13,6 +13,8 @@ export type Product = {
   description?: string
   size?: string
   color?: string
+  sizes?: string[]
+  colors?: string[]
   stockQuantity?: number
   offerType?: 'NONE' | 'PERCENTAGE' | 'FLAT'
   offerValue?: number
@@ -29,6 +31,8 @@ export type CreateProductInput = {
   description?: string
   size?: string
   color?: string
+  sizes?: string[]
+  colors?: string[]
   stockQuantity?: number
   offerType?: 'NONE' | 'PERCENTAGE' | 'FLAT'
   offerValue?: number
@@ -161,6 +165,8 @@ const createLocal = (input: CreateProductInput): Product => {
     description: input.description?.trim() || undefined,
     size: input.size?.trim() || undefined,
     color: input.color?.trim() || undefined,
+    sizes: input.sizes?.slice(0) || (input.size ? [input.size.trim()] : []),
+    colors: input.colors?.slice(0) || (input.color ? [input.color.trim()] : []),
     stockQuantity: Number(input.stockQuantity) || 0,
     offerType: input.offerType || 'NONE',
     offerValue: Math.max(0, Number(input.offerValue) || 0),
@@ -299,6 +305,8 @@ export const inventoryService = {
           description: input.description?.trim() || undefined,
           size: input.size?.trim() || undefined,
           color: input.color?.trim() || undefined,
+          sizes: input.sizes?.slice(0) || (input.size ? [input.size.trim()] : []),
+          colors: input.colors?.slice(0) || (input.color ? [input.color.trim()] : []),
           stockQuantity: Number(input.stockQuantity) || 1,
           offerType: input.offerType || 'NONE',
           offerValue: Math.max(0, Number(input.offerValue) || 0),
